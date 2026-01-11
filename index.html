@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>ZeroState Fixed</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* --- ДИЗАЙН --- */
+        :root {
+            --bg-deep: #020617;
+            --glass: rgba(15, 23, 42, 0.9);
+            --glass-border: 1px solid rgba(255, 255, 255, 0.08);
+            --text: #f8fafc;
+            --primary: #3b82f6;
+            --accent: #8b5cf6;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; padding: 20px; color: var(--text);
+            min-height: 100vh; background-color: var(--bg-deep); overflow-x: hidden;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.15) 0px, transparent 50%);
+            background-attachment: fixed;
+            background-size: cover;
+            padding-bottom: 100px;
+        }
+
+        /* --- ЭФФЕКТ ИНКОГНИТО (SBER GREY FIX) --- */
+        .number-span {
+            position: relative;
+            display: inline-block;
+            transition: all 0.2s;
+            border-radius: 8px;
+            vertical-align: bottom;
+            min-width: 60px; /* Чтобы блок не схлопывался */
+        }
+        
+        /* Главный стиль скрытия */
+        .secret-mode {
+            color: transparent !important; /* Текст исчезает */
+            /* ВАЖНОЕ ИСПРАВЛЕНИЕ: Отключаем градиент текста, чтобы он не просвечивал */
+            background-image: none !important; 
+            -webkit-text-fill-color: unset !important;
+            
+            /* Плотная серая заливка */
+            background-color: #334155; 
+            
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+            cursor: default;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        /* Анимация серых пятен (скелетон) */
+        .secret-mode::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; 
+            width: 100%; height: 100%;
+            
+            /* Эффект переливания света по серому (Shimmer) */
+            background: linear-gradient(
+                90deg, 
+                transparent 0%, 
+                rgba(255, 255, 255, 0.05) 50%, 
+                transparent 100%
+            );
+            
+            /* Размер и повторение */
+            background-size: 200% 100%;
+            animation: skeleton-loading 2s infinite linear;
+        }
+
+        @keyframes skeleton-loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* КНОПКА ГЛАЗА */
+        .eye-btn {
+            position: absolute; top: 20px; right: 20px;
+            width: 44px; height: 44px;
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 14px; color: #cbd5e1;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 50; transition: 0.2s;
+        }
+        .eye-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.2); }
+
+        /* ЗАГРУЗКА */
+        #loader {
+            position: fixed; inset: 0; background: #020617; z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.5s ease;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid rgba(59, 130, 246, 0.3);
+            border-top-color: var(--primary); border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 20px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* КАРТОЧКИ */
+        .card {
+            background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: var(--glass-border); border-radius: 24px; padding: 20px; margin-bottom: 20px;
+            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.5s ease-out;
+        }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* СОВЕТНИК */
+        .tip-box {
+            background: linear-gradient(90deg, rgba(59,130,246,0.1), rgba(139,92,246,0.1));
+            border-left: 3px solid var(--accent);
+            padding: 12px 15px; border-radius: 12px; margin-bottom: 20px; margin-right: 60px;
+            font-size: 13px; line-height: 1.5; color: #e2e8f0;
+            display: flex; gap: 10px; align-items: flex-start;
+        }
+
+        /* ТЕКСТ И ЦИФРЫ */
+        h3 { margin: 0 0 15px 0; font-size: 18px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .total-label { text-align: center; color: #94a3b8; font-size: 12px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 5px;}
+        .total-container { text-align: center; }
+        
+        .total-amount { 
+            font-size: 42px; font-weight: 800; display: inline-block;
+            /* Красивый градиент для обычного режима */
+            background: linear-gradient(to right, #fff, #cbd5e1); 
+            -webkit-background-clip: text; 
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* СИМУЛЯТОР */
+        input[type=range] { width: 100%; -webkit-appearance: none; background: transparent; margin: 20px 0; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%;
+            background: var(--primary); cursor: pointer; margin-top: -10px;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.8); border: 2px solid #fff;
+        }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #334155; border-radius: 3px; }
+        .sim-result { background: rgba(0,0,0,0.3); padding: 12px; border-radius: 12px; text-align: center; font-size: 14px; color: #cbd5e1; }
+
+        /* СПИСОК */
+        .debt-item {
+            background: rgba(255,255,255,0.03); border-radius: 16px; padding: 16px; margin-bottom: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .debt-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;}
+        .debt-name { font-weight: 700; font-size: 17px; }
+        .debt-val { font-weight: 600; font-size: 16px; color: #cbd5e1; text-align: right;}
+        
+        .debt-actions { display: flex; gap: 10px; }
+        .btn-action {
+            flex: 1; padding: 12px; border-radius: 12px; border: none; font-size: 14px; font-weight: 600;
+            display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+        }
+        .btn-pay-item { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+        .btn-del-item { background: rgba(239, 68, 68, 0.1); color: #f87171; max-width: 60px; }
+
+        /* FAB */
+        .fab {
+            position: fixed; bottom: 30px; right: 25px; width: 64px; height: 64px;
+            background: var(--primary); border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 26px; color: white;
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.5); z-index: 100;
+            transition: transform 0.1s;
+        }
+        .fab:active { transform: scale(0.9); }
+
+        /* МОДАЛКИ */
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); z-index: 200; opacity: 0; visibility: hidden; transition: 0.3s; }
+        .overlay.active { opacity: 1; visibility: visible; }
+        .modal {
+            position: fixed; bottom: -100%; left: 0; width: 100%;
+            background: #1e293b; padding: 25px; border-radius: 30px 30px 0 0;
+            box-sizing: border-box; transition: 0.4s cubic-bezier(0.19, 1, 0.22, 1); z-index: 201;
+            box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+        }
+        .modal.active { bottom: 0; }
+        input[type="text"], input[type="number"] {
+            width: 100%; padding: 18px; background: #0f172a; border: 1px solid #334155;
+            border-radius: 14px; color: white; font-size: 16px; margin-bottom: 15px;
+            box-sizing: border-box; outline: none;
+        }
+        input:focus { border-color: var(--primary); }
+        .btn-main { width: 100%; padding: 18px; border-radius: 14px; border: none; font-size: 16px; font-weight: 700; color: white; background: var(--primary); }
+        .chart-container { height: 220px; width: 100%; }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <div style="color:#64748b; font-size:12px;">ЗАГРУЗКА...</div>
+    </div>
+
+    <div id="app" style="display: none;">
+        
+        <div class="eye-btn" onclick="togglePrivacy()">
+            <i class="fas fa-eye" id="eyeIcon"></i>
+        </div>
+
+        <div class="tip-box">
+            <i class="fas fa-lightbulb" style="color: #fbbf24; margin-top: 3px;"></i>
+            <div id="dailyTip">Загрузка совета...</div>
+        </div>
+
+        <div class="card" style="text-align: center;">
+            <div class="total-label">БАЛАНС ДОЛГА</div>
+            <div class="total-container">
+                <span id="totalDisplay" class="total-amount number-span">0</span> <span style="font-size: 24px; color: #94a3b8;">₽</span>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3><i class="fas fa-chart-pie" style="color:var(--accent)"></i> Структура</h3>
+            <div class="chart-container">
+                <canvas id="debtChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3><i class="fas fa-hourglass-half" style="color: var(--primary)"></i> Машина Времени</h3>
+            <div style="font-size: 13px; color: #94a3b8; margin-bottom: 5px;">Ежемесячный платеж:</div>
+            <div style="font-size: 20px; font-weight: bold; margin-bottom: 10px; color: var(--primary);">
+                <span id="simVal" class="number-span">15 000</span> ₽
+            </div>
+            <input type="range" min="5000" max="200000" step="1000" value="15000" id="simRange" oninput="updateSim()">
+            <div class="sim-result" id="simText">Двигай ползунок...</div>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                <h3><i class="fas fa-list-ul" style="color:var(--success)"></i> Список</h3>
+                <span id="count" style="background:rgba(255,255,255,0.1); padding:2px 8px; border-radius:6px; font-size:12px;">0</span>
+            </div>
+            <div id="list"></div>
+        </div>
+    </div>
+
+    <div class="fab" onclick="openModal('modalAdd')"><i class="fas fa-plus"></i></div>
+    <div class="overlay" id="overlay" onclick="closeAll()"></div>
+
+    <div class="modal" id="modalAdd">
+        <h3>Новая запись</h3>
+        <input type="text" id="addName" placeholder="Название">
+        <input type="number" id="addAmount" placeholder="Сумма долга">
+        <button class="btn-main" onclick="addDebt()">Добавить</button>
+    </div>
+
+    <div class="modal" id="modalPay">
+        <h3 id="payTitle">Оплата</h3>
+        <input type="number" id="payAmount" placeholder="Сумма платежа">
+        <button class="btn-main" style="background: var(--success);" onclick="confirmPay()">Внести платеж</button>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        let debts = [];
+        let chart = null;
+        let currentId = null;
+        let isPrivacy = false;
+
+        const tips = [
+            "Гаси мелкие долги первыми — это даст мотивацию.",
+            "Не бери новые кредиты для закрытия старых.",
+            "Каждая 1000 рублей важна. Гаси досрочно.",
+            "Долг — это просто цифры. Ты справишься.",
+            "Веди учет расходов. Это фундамент свободы."
+        ];
+
+        window.onload = () => {
+            try { debts = JSON.parse(localStorage.getItem('debts')) || []; } catch { debts = []; }
+            setTimeout(() => {
+                document.getElementById('loader').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('loader').style.display = 'none';
+                    document.getElementById('app').style.display = 'block';
+                    document.getElementById('dailyTip').innerText = tips[Math.floor(Math.random() * tips.length)];
+                    render();
+                }, 500);
+            }, 1000);
+        };
+
+        // --- ИНКОГНИТО ---
+        function togglePrivacy() {
+            isPrivacy = !isPrivacy;
+            const icon = document.getElementById('eyeIcon');
+            icon.className = isPrivacy ? 'fas fa-eye-slash' : 'fas fa-eye';
+            
+            toggleSecret('totalDisplay');
+            toggleSecret('simVal');
+            render(); 
+        }
+
+        function toggleSecret(id) {
+            const el = document.getElementById(id);
+            if(isPrivacy) el.classList.add('secret-mode');
+            else el.classList.remove('secret-mode');
+        }
+
+        // --- РЕНДЕР ---
+        function render() {
+            const list = document.getElementById('list');
+            list.innerHTML = '';
+            let total = 0;
+            let labels = [], data = [];
+
+            debts.sort((a,b) => a.amount - b.amount);
+
+            if(debts.length === 0) list.innerHTML = '<div style="text-align:center; padding:30px; color:#64748b;">Список пуст.</div>';
+
+            debts.forEach(d => {
+                total += d.amount;
+                labels.push(d.name);
+                data.push(d.amount);
+                if(!d.id) d.id = Date.now() + Math.random();
+
+                const item = document.createElement('div');
+                item.className = 'debt-item';
+                
+                const valClass = isPrivacy ? 'debt-val secret-mode number-span' : 'debt-val number-span';
+                
+                item.innerHTML = `
+                    <div class="debt-header">
+                        <div class="debt-name">${d.name}</div>
+                        <div>
+                           <span class="${valClass}">${d.amount.toLocaleString()}</span> <span style="color:#64748b">₽</span>
+                        </div>
+                    </div>
+                    <div class="debt-actions">
+                        <button class="btn-action btn-pay-item" onclick="openPay('${d.id}', '${d.name}')"><i class="fas fa-wallet"></i> Оплатить</button>
+                        <button class="btn-action btn-del-item" onclick="deleteDebt('${d.id}')"><i class="fas fa-trash"></i></button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+
+            // Обновляем общий баланс (Важно: сохраняем ₽ отдельно)
+            document.getElementById('totalDisplay').innerText = total.toLocaleString(); // Возвращаем обычный текст
+            
+            if(isPrivacy) document.getElementById('totalDisplay').classList.add('secret-mode');
+            else document.getElementById('totalDisplay').classList.remove('secret-mode');
+
+            document.getElementById('count').innerText = debts.length;
+            drawChart(labels, data);
+            updateSim();
+        }
+
+        // --- ЛОГИКА ---
+        function addDebt() {
+            const name = document.getElementById('addName').value;
+            const amount = parseInt(document.getElementById('addAmount').value);
+            if(name && amount) {
+                debts.push({ id: Date.now().toString(), name, amount });
+                save();
+                closeAll();
+                document.getElementById('addName').value = '';
+                document.getElementById('addAmount').value = '';
+                tg.HapticFeedback.notificationOccurred('success');
+            }
+        }
+
+        function deleteDebt(id) {
+            if(confirm('Удалить?')) {
+                debts = debts.filter(d => d.id.toString() !== id.toString());
+                save();
+                tg.HapticFeedback.impactOccurred('medium');
+            }
+        }
+
+        function openPay(id, name) {
+            currentId = id;
+            document.getElementById('payTitle').innerText = name;
+            document.getElementById('payAmount').value = '';
+            openModal('modalPay');
+        }
+
+        function confirmPay() {
+            const amount = parseInt(document.getElementById('payAmount').value);
+            if(amount && currentId) {
+                const idx = debts.findIndex(d => d.id.toString() === currentId.toString());
+                if(idx !== -1) {
+                    if(amount >= debts[idx].amount) {
+                        debts.splice(idx, 1);
+                        confetti({particleCount:100, origin:{y:0.6}});
+                        tg.HapticFeedback.notificationOccurred('success');
+                    } else {
+                        debts[idx].amount -= amount;
+                        tg.HapticFeedback.impactOccurred('light');
+                    }
+                    save();
+                    closeAll();
+                }
+            }
+        }
+
+        function updateSim() {
+            let val = parseInt(document.getElementById('simRange').value);
+            
+            const valEl = document.getElementById('simVal');
+            valEl.innerText = val.toLocaleString();
+            if(isPrivacy) valEl.classList.add('secret-mode');
+            else valEl.classList.remove('secret-mode');
+
+            let total = debts.reduce((a,b)=>a+b.amount,0);
+            if(total===0) { 
+                document.getElementById('simText').innerText = "Вы свободны!"; 
+                return; 
+            }
+            
+            let months = Math.ceil(total/val);
+            let date = new Date(); date.setMonth(date.getMonth()+months);
+            let monthStr = date.toLocaleString('ru',{month:'long', year:'numeric'});
+            
+            document.getElementById('simText').innerHTML = `Свобода через <b>${months} мес</b> <br> (${monthStr})`;
+        }
+
+        function save() {
+            localStorage.setItem('debts', JSON.stringify(debts));
+            render();
+        }
+
+        function drawChart(labels, data) {
+            const ctx = document.getElementById('debtChart').getContext('2d');
+            if(chart) chart.destroy();
+            chart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{ data: data, backgroundColor: ['#3b82f6','#ec4899','#10b981','#f59e0b','#8b5cf6'], borderWidth: 0 }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: '75%' }
+            });
+        }
+
+        function openModal(id) {
+            document.getElementById('overlay').classList.add('active');
+            document.getElementById(id).classList.add('active');
+        }
+        function closeAll() {
+            document.getElementById('overlay').classList.remove('active');
+            document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+        }
+    </script>
+</body>
+</html>
